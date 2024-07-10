@@ -1,0 +1,61 @@
+From d5fa0f70897d7a9afe3257d72e779365e1d2371c Mon Sep 17 00:00:00 2001
+From: aleks-mariusz <a+git-commit@alek.cx>
+Date: Fri, 29 Sep 2023 13:28:44 +0100
+Subject: [PATCH] strongswan: patching swanctl init script to support other swanctl config and fix a bug
+
+for the details of what needs to be patched, see the /etc/config/ipsec block in this post: 
+https://forum.openwrt.org/t/confusion-regarding-setting-up-ikev2-vpn-service-with-strongswan-using-ipsec-and-swanctl/1695
+
+also for the bug, see this: https://github.com/openwrt/packages/issues/22245
+---
+ net/strongswan/files/swanctl.init | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/net/strongswan/files/swanctl.init b/net/strongswan/files/swanctl.init
+index dcc065d..ed99620 100644
+#--- a/net/strongswan/files/swanctl.init
+#+++ b/net/strongswan/files/swanctl.init
+--- a/etc/init.d/swanctl
++++ b/etc/init.d/swanctl
+@@ -199,12 +199,6 @@ config_ike_proposal() {
+ 	config_get dh_group "$conf" dh_group
+ 	config_get prf_algorithm "$conf" prf_algorithm
+ 
+-	# check for AEAD and clobber hash_algorithm if set
+-	if is_aead "$encryption_algorithm" && [ -n "$hash_algorithm" ]; then
+-		fatal "Can't have $hash_algorithm with $encryption_algorithm"
+-		hash_algorithm=
+-	fi
+-
+ 	[ -n "$encryption_algorithm" ] && \
+ 		crypto="${crypto:+${crypto},}${encryption_algorithm}${hash_algorithm:+-${hash_algorithm}}${prf_algorithm:+-${prf_algorithm}}${dh_group:+-${dh_group}}"
+ }
+@@ -435,6 +429,8 @@ config_remote() {
+ 	local auth_method
+ 	local keyingtries
+ 	local dpddelay
++	local local_sendcert
++	local remote_sendcert
+ 	local inactivity
+ 	local keyexchange
+ 	local fragmentation
+@@ -457,6 +453,9 @@ config_remote() {
+ 	config_get local_ip "$conf" local_ip "%any"
+ 	config_get keyingtries "$conf" keyingtries "3"
+ 	config_get dpddelay "$conf" dpddelay "30s"
++	config_get encap "$conf" force_encapsulation "no"
++	config_get send_cert "$conf" local_sendcert "ifasked"
++	config_get send_certreq "$conf" remote_sendcert "yes"
+ 	config_get inactivity "$conf" inactivity
+ 	config_get keyexchange "$conf" keyexchange "ikev2"
+ 	config_get fragmentation "$conf" fragmentation "yes"
+@@ -573,6 +572,9 @@ config_remote() {
+ 
+ 	swanctl_xappend2 "proposals = $ike_proposal"
+ 	[ -n "$dpddelay" ] && swanctl_xappend2 "dpd_delay = $dpddelay"
++	[ -n "$encap" ] && swanctl_xappend2 "encap = $encap"
++	[ -n "$send_certreq" ] && swanctl_xappend2 "send_certreq = $send_certreq"
++	[ -n "$send_cert" ] && swanctl_xappend2 "send_cert = $send_cert"
+ 	[ "$keyingtries" = "%forever" ] && swanctl_xappend2 "keyingtries = 0" || swanctl_xappend2 "keyingtries = $keyingtries"
+ 
+ 	swanctl_xappend1 "}"
